@@ -58,7 +58,7 @@ def snakey(name):
     s = s.replace("&amp;", "and")
     s = s.replace(" ", "_")
     s = alphafy_re.sub("", s)
-    return s.lower()
+    return s
 
 
 def get_api_request(offset, **kwargs):
@@ -75,8 +75,10 @@ def get_data(**kwargs):
         url = get_api_request(offset, **kwargs)
         r = requests.get(url).json()
         try:
-            data += r["cargoquery"]
-            offset += len(data)
+            if len(r['cargoquery']) == 0:
+                break
+            data += r['cargoquery']
+            offset += len(r['cargoquery'])
         except:
             raise Exception(url)
     return data
@@ -107,7 +109,7 @@ def image_list(file_name):
     tbl = None
     if file_name == "adventurer":
         tbl = {
-            "{}_{:02d}_r0{}.png".format(
+            "{}_0{}_r0{}.png".format(
                 d["title"]["Id"], int(d["title"]["VariationId"]), int(d["title"]["Rarity"])
             ): d["title"]["FullName"]
             for d in get_data(tables="Adventurers", fields="Id,VariationId,FullName,Rarity")
