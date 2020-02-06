@@ -10,6 +10,7 @@ import sys
 import aiohttp
 import asyncio
 import errno
+from unidecode import unidecode
 
 # Queries
 MAX = 500
@@ -25,41 +26,32 @@ pattern = {
     "adventurer": r"\d{6}_\d{2,3}_r0[345].png",
     "dragon": r"\d{6}_01.png",
     "weapon": r"\d{6}_01_\d{5}.png",
-    "wyrmprint": r"\d{6}_0[12].png",
-    "material": r"\d{9}.png",
+    "wyrmprint": r"\d{6}_0[12].png"
 }
 
 start = {
     "adventurer": "100001_01_r04.png",
     "dragon": "210001_01.png",
     "weapon": "301001_01_19901.png",
-    "wyrmprint": "400001_01.png",
-    "material": "104001011.png",
+    "wyrmprint": "400001_01.png"
 }
 
 end = {
     "adventurer": "2",
     "dragon": "3",
     "weapon": "4",
-    "wyrmprint": "A",
-    "material": "4",
+    "wyrmprint": "A"
 }
 
 save_dir = {
-    "adventurer": "adv",
-    "dragon": "d",
-    "weapon": "w",
-    "wyrmprint": "wp",
-    "material": "m",
+    "adventurer": "character",
+    "dragon": "dragon",
+    "weapon": "weapon",
+    "wyrmprint": "amulet"
 }
 
 def snakey(name):
-    s = name.replace("ñ", "n")
-    s = s.replace("&amp;", "and")
-    s = s.replace(" ", "_")
-    s = alphafy_re.sub("", s)
-    return s
-
+    return re.sub(r'[^0-9a-zA-Z ]', '', unidecode(name)).replace(' ', '_').replace('_amp', '')
 
 def get_api_request(offset, **kwargs):
     q = "{}&offset={}".format(BASE_URL, offset)
@@ -96,14 +88,18 @@ async def download(session, tbl, save_dir, k, v):
     try:
         fn = snakey(tbl[k]) + ".png"
         path = Path(__file__).resolve().parent / "img/{}/{}".format(save_dir, fn)
-        async with session.get(v) as resp:
-            assert resp.status == 200
+    except KeyError:
+        try:
+            fn = snakey(tbl[k.replace('_02', '_01')]) + ".png"
+            path = Path(__file__).resolve().parent / "img/{}/{}".format(save_dir, fn)
+        except KeyError:
+            return
+    async with session.get(v) as resp:
+        if resp.status == 200:
             check_target_path(path)
             with open(path, 'wb') as f:
                 f.write(await resp.read())
                 print("download image: {}".format(fn))
-    except KeyError:
-        pass
 
 def image_list(file_name):
     tbl = None
@@ -127,11 +123,17 @@ def image_list(file_name):
             for d in get_data(tables="Wyrmprints", fields="BaseId,Name")
         }
     elif file_name == "weapon":
+        availability_dict = {
+            'High Dragon': 'HDT2',
+            'Agito': 'Agito'
+        }
         tbl = {
-            "{}_01_{}.png".format(d["title"]["BaseId"], d["title"]["FormId"]): d["title"][
-                "WeaponName"
-            ]
-            for d in get_data(tables="Weapons", fields="BaseId,FormId,WeaponName")
+            "{}_01_{}.png".format(d["title"]["BaseId"], d["title"]["FormId"]): "{} {} {}".format(
+                availability_dict[d["title"]["Availability"]],
+                d["title"]["ElementalType"].lower(),
+                d["title"]["Type"].lower()
+            )
+            for d in get_data(tables="Weapons", fields="BaseId,FormId,Availability,ElementalType,Type", where="(Availability=\'High Dragon\' AND CraftNodeId >= 200) OR Availability=\'Agito\'")
         }
 
     download = {}
@@ -163,35 +165,7 @@ def image_list(file_name):
                 break
         except:
             raise Exception
-
     return tbl, download
-    # for k, v in download.items():
-    #     fn = k
-    #     if file_name == "adventurer":
-    #         if fn in chara:
-    #             fn = snakey(chara[k]) + ".png"
-    #             path = Path(__file__).resolve().parent / "img/{}/{}".format("adv", fn)
-    #             urllib.request.urlretrieve(v, path)
-    #             print("download image: {}".format(fn))
-    #     if file_name == "dragon":
-    #         if fn in drag:
-    #             fn = snakey(drag[k]) + ".png"
-    #             path = Path(__file__).resolve().parent / "img/{}/{}".format("d", fn)
-    #             urllib.request.urlretrieve(v, path)
-    #             print("download image: {}".format(fn))
-    #     if file_name == "weapon":
-    #         if fn in w:
-    #             fn = snakey(w[k]) + ".png"
-    #             path = Path(__file__).resolve().parent / "img/{}/{}".format("w", fn)
-    #             urllib.request.urlretrieve(v, path)
-    #             print("download image: {}".format(fn))
-    #     if file_name == "wyrmprint":
-    #         if fn in wp:
-    #             print(fn, wp[k])
-    #             fn = snakey(wp[k]) + ".png"
-    #             path = Path(__file__).resolve().parent / "img/{}/{}".format("wp", fn)
-    #             urllib.request.urlretrieve(v, path)
-    #             print("download image: {}".format(fn))
 
 async def download_images(file_name):
     tbl, dl = image_list(file_name)
