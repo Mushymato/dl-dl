@@ -91,7 +91,7 @@ async def download(session, tbl, save_dir, k, v):
     except KeyError:
         if save_dir == 'amulet':
             try:
-                fn = snakey(tbl[k.replace('_02', '_01')]) + '.png'
+                fn = snakey(tbl[k.replace('_01', '_02')]) + '.png'
                 path = Path(__file__).resolve().parent / 'img/{}/{}'.format(save_dir, fn)
             except KeyError:
                 return
